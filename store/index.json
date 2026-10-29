@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "updated": "2026-10-29",
+  "extensions": [
+    {
+      "id": "reading-time",
+      "name": "Reading Time",
+      "version": "1.0.0",
+      "description": "Shows a small estimated reading-time badge on long articles.",
+      "author": "Aegis",
+      "category": "Productivity",
+      "emoji": "⏱️",
+      "homepage": "https://github.com/moulitholusuri/aegis-ai-browser/tree/main/examples/reading-time",
+      "downloadUrl": "https://github.com/moulitholusuri/aegis-ai-browser/releases/download/ext-reading-time-v1.0.0/reading-time-1.0.0.zip",
+      "sha256": "ce14f755615cc0910110badd95f7d12b4bb245a6599866fa4982fad13565762d",
+      "updated": "2026-10-29"
+    }
+  ]
+}

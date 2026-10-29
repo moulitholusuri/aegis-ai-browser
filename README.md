@@ -39,6 +39,7 @@ Signing/notarization is intentionally skipped so the project stays free to build
 | V8 | 15.6.75 |
 | electron-builder | 26.18.0 |
 | qrcode | 1.5.4 |
+| adm-zip | 0.6.1 |
 | Node.js (development) | 22.x (tested 22.20.0) |
 | npm | 10.x (tested 10.9.3) |
 
@@ -60,7 +61,8 @@ npm run dist:mac     # .dmg + .zip (or dist:win / dist:linux)
 | **Fully automated AI browser** | Built-in AI copilot: page summaries, Q&A about any page, and an **Autopilot agent** that decomposes a task into steps (open/ask/done) and runs them for you. Uses an OpenAI-compatible API if you configure one, otherwise a fully-offline local engine. |
 | **Ignores all ads** | Request-layer blocking of 120+ ad/tracker/malvertising domains + URL-pattern rules, plus **cosmetic filtering** that hides ad containers served from first-party origins (Google AdSense, Taboola, Outbrain, sponsored posts, cookie banners…). Live blocked counter in the status bar. |
 | **Auto-clears cache & informs you** | Automatically flushes HTTP cache, cookies, and site storage on a schedule (5/10/30/60 min, configurable). Every clean raises a **system notification + in-app toast** with what was removed. Also cleans on quit and has a one-click "Clean now" button. |
-| **Google Authenticator sign-in** | True **TOTP (RFC 6238)** — the exact standard Google Authenticator uses. First run shows a QR code to scan; every sign-in needs your passphrase **plus** the live 6-digit code. Passphrase is stretched with **scrypt**; codes verified with ±1 step clock-drift tolerance. |
+| **Google Authenticator sign-in** | True **TOTP (RFC 6238)** — the exact standard Google Authenticator uses. First run shows a QR code to scan; every sign-in needs your **username**, passphrase **plus** the live 6-digit code. A wrong username, passphrase or code all return the same `Credentials mismatching` message. Passphrase is stretched with **scrypt**; codes verified with ±1 step clock-drift tolerance. Usernames are display labels — editable anytime in Settings without touching the encryption keys. |
+| **Free extension store + publishing** | Ships with 5 real **MV3** extensions (dark mode, JSON viewer, reader mode, cookie-banner hider, link scrubber). A free **community catalog** lives in `store/index.json` on GitHub: installs are HTTPS-only, size-capped, path-traversal-safe and pinned with **SHA-256**. The **Publish** tab packages any extension folder into a `.zip`, hashes it, builds the catalog entry and opens a prefilled GitHub submission — no fee, no developer account, no central server. |
 | **Protected history** | Browsing history is encrypted **at rest with AES-256-GCM** — plaintext never touches the disk. The encryption key is derived from your passphrase + authenticator secret and only exists in memory while unlocked. Auto-locks after inactivity. Searchable, deletable, clearable history panel. |
 | **Leak-proof** | WebRTC IP-leak prevention, cross-site referrer stripping, DNT + Global Privacy Control headers forced on, anti-fingerprinting (WebGL spoofing, webdriver hiding, battery/bluetooth neutralized), all permissions denied by default, dangerous URL schemes blocked, background networking & component updates disabled, certificate errors surfaced. |
 
@@ -74,11 +76,14 @@ npm start
 
 ## First run
 
-1. **Choose a passphrase** (min 8 chars) → click *Create authenticator binding*.
-2. **Scan the QR code** with Google Authenticator (or any TOTP app: Authy, 1Password, Aegis…).
+1. **Choose a username** — this is the name shown on the sign-in screen. You can change it later in **Settings → Account**; it is only a label and never affects the encryption keys.
+2. **Choose a passphrase** (min 8 chars) → click *Create authenticator binding*.
+3. **Scan the QR code** with Google Authenticator (or any TOTP app: Authy, 1Password, Aegis…).
    - Can't scan? Enter the displayed key manually in your app.
-3. **Type the 6-digit code** → *Activate browser*.
-4. You're in. The 🧹 status bar shows the auto-clean schedule, 🛡️ shows live ad blocking.
+4. **Type the 6-digit code** → *Activate browser*.
+5. You're in. The 🧹 status bar shows the auto-clean schedule, 🛡️ shows live ad blocking.
+
+Already have a profile? The login screen has **👤 New user? Create an account** (replaces this device's single encrypted profile after a confirmation).
 
 ## Daily use
 
@@ -87,8 +92,29 @@ npm start
 - **🤖 AI panel** (⌘-button in toolbar) — *Summarize this page*, *Ask*, or run an
   **Autopilot** task like *"find the latest news on AI privacy"* and watch the agent work.
 - **🧹** — clean cache/cookies instantly. **🔒** — lock the vault.
-- **Settings ⚙️** — auto-clean interval, auto-lock timeout, anti-fingerprint toggles,
-  and optional AI provider (API key is stored **encrypted in your vault**).
+- **🧩 Extension store** — install built-in or community extensions, install from a
+  `.zip` URL, or publish your own extension for free (see below).
+- **Settings ⚙️** — username, auto-clean interval, auto-lock timeout, anti-fingerprint
+  toggles, and optional AI provider (API key is stored **encrypted in your vault**).
+
+## Extension store & free publishing
+
+Open **🧩** in the toolbar:
+
+- **Browse** — the 5 built-in extensions plus the **community catalog** from
+  [`store/index.json`](store/index.json), fetched from GitHub when the store opens and
+  cached for offline use.
+- **Install from URL…** — paste any public HTTPS `.zip`. Aegis downloads it, enforces
+  size/path limits, verifies the catalog’s **SHA-256** when one is pinned, and loads it
+  as a real Chrome MV3 extension in the browsing session.
+- **Publish yours — free** — choose a folder containing `manifest.json`. Aegis builds
+  `<name>-<version>.zip`, computes its SHA-256, generates the catalog JSON and opens a
+  prefilled GitHub submission. Host the zip on GitHub Releases (free) and submit — no
+  store fee, no developer account, no backend server.
+
+Full publishing guide and the catalog schema: [`store/README.md`](store/README.md).
+A working example extension lives in [`examples/reading-time`](examples/reading-time)
+and is published in the live community catalog.
 
 ## Aegis Search — the built-in engine
 

@@ -20,7 +20,7 @@ const {
   engineMap, DEFAULT_ENABLED_ENGINES, applySearchSettings,
 } = require('./anonymity');
 const { ErrorModel } = require('./diagnostics');
-const { ExtensionStore } = require('./extensions');
+const { ExtensionStore, buildSubmissionUrl } = require('./extensions');
 const { FaviconCache } = require('./favicon');
 
 // ---------- privileged aegis:// scheme (must be before ready) ----------
@@ -323,6 +323,7 @@ const extStore = new ExtensionStore({
   getSession: () => session.fromPartition(BROWSE_PARTITION),
   getSettings,
   setSettings: updateSettings,
+  getStoreDir: () => path.join(USER_DIR, 'extensions'),
 });
 
 function notify(title, body) {
@@ -358,10 +359,12 @@ function applyAnonymity() {
 ipcMain.handle('auth:status', () => ({
   configured: auth.isConfigured(),
   unlocked: auth.isUnlocked(),
+  username: auth.state.username || '',
+  hasUsername: !!auth.state.username,
 }));
 
-ipcMain.handle('auth:setup', async (e, { passphrase }) => {
-  const { qr, secret } = await auth.setup(passphrase);
+ipcMain.handle('auth:setup', async (e, { username, passphrase }) => {
+  const { qr, secret } = await auth.setup(username, passphrase);
   return { qr, secret };
 });
 
@@ -373,13 +376,18 @@ ipcMain.handle('auth:confirm', (e, { code }) => {
   return { ok: true };
 });
 
-ipcMain.handle('auth:login', (e, { passphrase, code }) => {
-  auth.login(passphrase, code);
+ipcMain.handle('auth:login', (e, { username, passphrase, code }) => {
+  auth.login(username, passphrase, code);
   vault = new EncryptedVault(auth.dek, path.join(VAULT_DIR, 'vault.enc'));
   sessionLocked = false;
   syncViewVisibility();
   startIdleTimer();
   return { ok: true };
+});
+
+ipcMain.handle('auth:set-username', (e, { username }) => {
+  const saved = auth.setUsername(username);
+  return { ok: true, username: saved };
 });
 
 ipcMain.handle('auth:lock', () => { lockSession('manual'); return { ok: true }; });
@@ -591,6 +599,65 @@ ipcMain.handle('ext:unpacked', async () => {
   } catch (err) {
     return { ok: false, error: String((err && err.message) || err) };
   }
+});
+
+// Community catalog (free, hosted as store/index.json on GitHub).
+ipcMain.handle('ext:refresh', async () => {
+  try { return await extStore.refresh(); }
+  catch (err) { return { ok: false, error: String((err && err.message) || err) }; }
+});
+
+ipcMain.handle('ext:install-url', async (e, { url, sha256 } = {}) => {
+  try { return await extStore.installFromUrl(url, sha256); }
+  catch (err) { return { ok: false, error: String((err && err.message) || err) }; }
+});
+
+// Publish: pick a folder, read its manifest (so the form can prefill)…
+ipcMain.handle('ext:pick-folder', async () => {
+  const opts = {
+    title: 'Choose the extension folder to publish',
+    properties: ['openDirectory'],
+    message: 'Folder containing manifest.json',
+  };
+  const r = win && !win.isDestroyed()
+    ? await dialog.showOpenDialog(win, opts)
+    : await dialog.showOpenDialog(opts);
+  if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+  try { return extStore.inspect(r.filePaths[0]); }
+  catch (err) { return { ok: false, error: String((err && err.message) || err) }; }
+});
+
+// …then build a .zip, hash it, and return the catalog entry + submission link.
+ipcMain.handle('ext:publish', async (e, { dir, meta } = {}) => {
+  try {
+    const info = extStore.inspect(dir);
+    const suggested = `${info.id}-${info.manifest.version || '1.0.0'}.zip`;
+    const opts = {
+      title: 'Save extension package',
+      defaultPath: path.join(app.getPath('downloads'), suggested),
+      filters: [{ name: 'Zip archive', extensions: ['zip'] }],
+    };
+    const r = win && !win.isDestroyed()
+      ? await dialog.showSaveDialog(win, opts)
+      : await dialog.showSaveDialog(opts);
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    const built = extStore.packageExtension(dir, meta || {}, r.filePath);
+    return { ...built, submitUrl: buildSubmissionUrl(built.entry) };
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+});
+
+ipcMain.handle('ext:reveal', (e, file) => {
+  try { shell.showItemInFolder(String(file)); return { ok: true }; }
+  catch (err) { return { ok: false, error: String(err) }; }
+});
+
+ipcMain.handle('app:open-external', (e, url) => {
+  const u = String(url || '');
+  if (!/^https:\/\//i.test(u)) return { ok: false, error: 'Only https:// links can be opened.' };
+  shell.openExternal(u).catch(() => {});
+  return { ok: true };
 });
 
 // ---------------- window ----------------

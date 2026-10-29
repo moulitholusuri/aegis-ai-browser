@@ -38,8 +38,8 @@ const settings = {
 
 contextBridge.exposeInMainWorld('aegis', {
   auth: {
-    status: () => Promise.resolve({ configured: true, unlocked: true }),
-    setup: ok, confirm: ok, login: ok, lock: ok, touch: ok, wipe: ok, onLocked: noop,
+    status: () => Promise.resolve({ configured: true, unlocked: true, username: 'Test User', hasUsername: true }),
+    setup: ok, confirm: ok, login: ok, setUsername: ok, lock: ok, touch: ok, wipe: ok, onLocked: noop,
   },
   tabs: {
     create: ok, close: ok, activate: ok, back: ok, forward: ok, stop: ok, navigate: ok,
@@ -58,11 +58,17 @@ contextBridge.exposeInMainWorld('aegis', {
   },
   diag: { report: () => Promise.resolve({ groups: [], total: 0 }), seen: ok },
   ext: {
-    list: () => Promise.resolve({ items, count: items.filter((i) => i.loaded).length }),
+    list: () => Promise.resolve({ items, count: items.filter((i) => i.loaded).length, bundled: items.length, community: 0 }),
     install: (k) => { calls.push(['ext.install', k]); return ok(); },
     uninstall: (k) => { calls.push(['ext.uninstall', k]); return ok(); },
     loadUnpacked: () => { calls.push(['ext.unpacked']); return Promise.resolve({ ok: false, canceled: true }); },
+    refresh: () => { calls.push(['ext.refresh']); return Promise.resolve({ ok: true, count: 0, items: [] }); },
+    installUrl: (u) => { calls.push(['ext.installUrl', u]); return ok(); },
+    pickFolder: () => { calls.push(['ext.pickFolder']); return Promise.resolve({ ok: false, canceled: true }); },
+    publish: (p) => { calls.push(['ext.publish', p && p.dir]); return Promise.resolve({ ok: false, canceled: true }); },
+    reveal: (p) => { calls.push(['ext.reveal', p]); return ok(); },
   },
+  openExternal: (u) => { calls.push(['openExternal', u]); return ok(); },
   privacy: {
     clean: ok,
     status: () => Promise.resolve({

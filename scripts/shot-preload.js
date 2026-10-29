@@ -49,8 +49,8 @@ const setSettings = (patch) => Promise.resolve({ ok: true, settings: snapshot() 
 
 contextBridge.exposeInMainWorld('aegis', {
   auth: {
-    status: () => Promise.resolve({ configured: true, unlocked: true }),
-    setup: ok, confirm: ok, login: ok, lock: ok, touch: ok, wipe: ok, onLocked: noop,
+    status: () => Promise.resolve({ configured: true, unlocked: true, username: 'Test User', hasUsername: true }),
+    setup: ok, confirm: ok, login: ok, setUsername: ok, lock: ok, touch: ok, wipe: ok, onLocked: noop,
   },
   tabs: {
     create: ok, close: ok, activate: ok, back: ok, forward: ok, stop: ok, navigate: ok,

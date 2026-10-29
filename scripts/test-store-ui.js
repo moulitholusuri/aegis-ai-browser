@@ -113,6 +113,30 @@ app.whenReady().then(async () => {
     if (unpacked) ok('"Load unpacked extension…" calls the native picker');
     else fail('ext.loadUnpacked never invoked');
 
+    // ---- publish tab + community refresh --------------------------------
+    await js(`document.getElementById('store-tab-publish').click()`);
+    const pubVisible = await poll(`!document.getElementById('store-publish').classList.contains('hidden')`);
+    if (pubVisible) ok('Publish tab opens the free publishing flow');
+    else fail('publish tab did not open');
+    const pubForm = await js(`!!document.getElementById('pub-pick') && !!document.getElementById('pub-url') && !!document.getElementById('pub-build')`);
+    if (pubForm) ok('publish form exposes folder, .zip URL and build controls');
+    else fail('publish form is incomplete');
+    await js(`window.__test.reset(); document.getElementById('pub-pick').click()`);
+    const picked = await poll(`window.__test.calls().some(c => c[0] === 'ext.pickFolder')`);
+    if (picked) ok('"Choose extension folder…" calls the native folder picker');
+    else fail('ext.pickFolder never invoked');
+    await js(`document.getElementById('store-tab-browse').click()`);
+
+    await js(`window.__test.reset(); document.getElementById('store-refresh').click()`);
+    const refreshed = await poll(`window.__test.calls().some(c => c[0] === 'ext.refresh')`);
+    if (refreshed) ok('Refresh calls the community catalog endpoint');
+    else fail('ext.refresh never invoked');
+
+    await js(`document.getElementById('store-url-toggle').click()`);
+    const urlRow = await poll(`!document.getElementById('store-url-row').classList.contains('hidden')`);
+    if (urlRow) ok('"Install from URL…" reveals the link field');
+    else fail('URL install field did not open');
+
     // ---- close -----------------------------------------------------------
     await js(`window.__test.reset(); document.getElementById('store-close').click()`);
     const closed = await poll(`document.getElementById('overlay-store').classList.contains('hidden')`);

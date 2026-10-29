@@ -1,6 +1,6 @@
 {
   "name": "aegis-ai-browser",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Aegis — automated, ad-proof, leak-proof AI browser. TOTP (Google Authenticator) sign-in, encrypted history, auto cache cleaning.",
   "main": "src/main/main.js",
   "scripts": {
@@ -25,6 +25,7 @@
     "electron-builder": "^26.18.0"
   },
   "dependencies": {
+    "adm-zip": "^0.6.1",
     "qrcode": "^1.5.4"
   },
   "author": "moulitholusuri",
@@ -72,8 +73,16 @@
     "dmg": {
       "title": "Aegis ${version}",
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     },
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"

@@ -8,6 +8,7 @@ let state = {
   tabs: [],
   activeTabId: null,
   settings: {},
+  account: null,
 };
 
 // ---------------- helpers ----------------
@@ -31,6 +32,14 @@ function fmtTime(ts) {
   if (diff < 60) return 'just now';
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   return d.toLocaleString();
+}
+
+// IPC errors arrive as "Error invoking remote method 'x': Error: real message".
+// Show only the part the user can act on.
+function errText(e) {
+  const raw = String((e && e.message) || e || 'Something went wrong.');
+  const i = raw.lastIndexOf('Error: ');
+  return i >= 0 ? raw.slice(i + 7) : raw;
 }
 
 // ---------------- viewport sync (positions the page view under the chrome) ----------------
@@ -88,24 +97,35 @@ api.tabs.onChanged((list) => { state.tabs = list; renderTabs(); });
 // ---------------- auth flow ----------------
 async function boot() {
   const status = await api.auth.status();
+  state.account = status;
   if (!status.configured) show('screen-setup');
-  else if (!status.unlocked) show('screen-login');
+  else if (!status.unlocked) { show('screen-login'); applyLoginAccount(status); }
   else enterBrowser();
 }
 
+// The username is a sign-in label, not part of the encryption key. Legacy
+// profiles don't have one yet — hide the field until Settings sets it.
+function applyLoginAccount(status) {
+  const has = !!(status && status.hasUsername);
+  $('login-user-label').classList.toggle('hidden', !has);
+  $('login-user').value = has ? (status.username || '') : '';
+}
+
 $('setup-next').onclick = async () => {
+  const user = $('setup-user').value.trim();
   const p1 = $('setup-pass').value, p2 = $('setup-pass2').value;
   const err = $('setup-error');
   err.textContent = '';
+  if (!user) return (err.textContent = 'Choose a username first.');
   if (p1.length < 8) return (err.textContent = 'Passphrase must be at least 8 characters.');
   if (p1 !== p2) return (err.textContent = 'Passphrases do not match.');
   try {
-    const { qr, secret } = await api.auth.setup(p1);
+    const { qr, secret } = await api.auth.setup(user, p1);
     $('setup-qr').src = qr;
     $('setup-secret').textContent = secret.replace(/(.{4})/g, '$1 ').trim();
     $('screen-setup').querySelector('.auth-card').classList.add('hidden');
     $('setup-qr-card').classList.remove('hidden');
-  } catch (e) { err.textContent = e.message || String(e); }
+  } catch (e) { err.textContent = errText(e); }
 };
 
 $('setup-confirm').onclick = async () => {
@@ -114,19 +134,33 @@ $('setup-confirm').onclick = async () => {
   try {
     await api.auth.confirm($('setup-code').value.trim());
     enterBrowser();
-  } catch (e) { err.textContent = e.message || String(e); }
+  } catch (e) { err.textContent = errText(e); }
 };
 
 $('login-go').onclick = async () => {
   const err = $('login-error');
   err.textContent = '';
+  const user = $('login-user-label').classList.contains('hidden') ? '' : $('login-user').value.trim();
   try {
-    await api.auth.login($('login-pass').value, $('login-code').value.trim());
+    await api.auth.login(user, $('login-pass').value, $('login-code').value.trim());
     enterBrowser();
-  } catch (e) { err.textContent = e.message || String(e); }
+  } catch (e) {
+    err.textContent = errText(e);
+    $('login-code').value = '';
+  }
 };
 
 $('login-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-go').click(); });
+$('login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-code').focus(); });
+
+// New-user signup lives on the login screen. Aegis is a single-profile browser
+// (one encrypted vault per install), so creating a new account replaces the old
+// one after an explicit confirmation.
+$('login-newuser').onclick = async () => {
+  if (!confirm('Create a new account?\n\nAegis keeps one profile per installation. The current account and its encrypted history will be erased on this device. This cannot be undone.')) return;
+  await api.auth.wipe();
+  location.reload();
+};
 
 $('login-wipe').onclick = async () => {
   if (!confirm('Erase ALL Aegis data (history vault, keys, settings) and start over?')) return;
@@ -134,9 +168,15 @@ $('login-wipe').onclick = async () => {
   location.reload();
 };
 
-api.auth.onLocked((info) => {
+api.auth.onLocked(async (info) => {
   if ($('browser').classList.contains('hidden')) return;
   show('screen-login');
+  try {
+    state.account = await api.auth.status();
+    applyLoginAccount(state.account);
+  } catch { /* keep cached account */ }
+  $('login-pass').value = '';
+  $('login-code').value = '';
   $('login-error').textContent = info.reason === 'idle' ? 'Auto-locked after inactivity.' : '';
   toast('🔒 Browser locked — sign in again', 'warn');
 });
@@ -347,8 +387,21 @@ $('btn-settings').onclick = openSettings;
 $('settings-close').onclick = () => closeOverlay('settings');
 
 // ---------------- extension store ----------------
+let pubDir = null, pubEntry = null, pubZip = null, pubSubmit = null;
+
 $('btn-store').onclick = openStore;
 $('store-close').onclick = () => closeOverlay('store');
+
+$('store-tab-browse').onclick = () => showStoreTab('browse');
+$('store-tab-publish').onclick = () => showStoreTab('publish');
+
+function showStoreTab(tab) {
+  $('store-tab-browse').classList.toggle('active', tab === 'browse');
+  $('store-tab-publish').classList.toggle('active', tab === 'publish');
+  $('store-browse').classList.toggle('hidden', tab !== 'browse');
+  $('store-publish').classList.toggle('hidden', tab !== 'publish');
+}
+
 $('store-unpacked').onclick = async () => {
   try {
     const r = await api.ext.loadUnpacked();
@@ -357,14 +410,81 @@ $('store-unpacked').onclick = async () => {
     toast(`🧩 Loaded ${r.name}`, 'ok');
     await loadStore();
   } catch (err) {
-    toast(`🧩 ${err.message}`, 'warn');
+    toast(`🧩 ${errText(err)}`, 'warn');
   }
 };
+
+$('store-refresh').onclick = async () => {
+  const btn = $('store-refresh');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
+  try {
+    const r = await api.ext.refresh();
+    if (r && r.ok) {
+      toast(`🧩 Community catalog: ${r.count} extension(s)`, 'ok');
+      await loadStore();
+    } else {
+      toast(`🧩 ${(r && r.error) || 'Could not refresh the catalog'}`, 'warn');
+    }
+  } catch (err) {
+    toast(`🧩 ${errText(err)}`, 'warn');
+  }
+  btn.disabled = false;
+  btn.textContent = '↻ Refresh community';
+};
+
+$('store-url-toggle').onclick = () => {
+  const row = $('store-url-row');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) $('store-url').focus();
+};
+
+$('store-url-go').onclick = async () => {
+  const url = $('store-url').value.trim();
+  if (!/^https:\/\//i.test(url)) { toast('🧩 Paste an https:// .zip download link', 'warn'); return; }
+  if (!confirm('Install an extension from this link?\n\nExtensions can read and change data on the sites you visit. Only install packages from authors you trust.')) return;
+  const btn = $('store-url-go');
+  btn.disabled = true;
+  btn.textContent = 'Installing…';
+  try {
+    const r = await api.ext.installUrl(url);
+    if (r && r.ok) {
+      toast(`🧩 Installed ${r.name || 'extension'} — reloading tab to apply`, 'ok');
+      $('store-url').value = '';
+      $('store-url-row').classList.add('hidden');
+      if (state.activeTabId) api.tabs.reload(state.activeTabId);
+      await loadStore();
+    } else {
+      toast(`🧩 ${(r && r.error) || 'Install failed'}`, 'warn');
+    }
+  } catch (err) {
+    toast(`🧩 ${errText(err)}`, 'warn');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Install';
+};
+
+$('store-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('store-url-go').click(); });
 
 async function openStore() {
   $('overlay-store').classList.remove('hidden');
   api.ui.overlay('store'); // hide the page view so the panel is visible
+  showStoreTab('browse');
   await loadStore();
+  refreshCommunityCatalog();
+}
+
+// Cached entries render immediately; this pulls the GitHub-hosted catalog in
+// the background and re-renders when it lands. Offline just keeps the cache.
+async function refreshCommunityCatalog() {
+  $('store-status').textContent += ' · refreshing community…';
+  try {
+    const r = await api.ext.refresh();
+    if (r && r.ok) await loadStore();
+    else $('store-status').textContent = `Community catalog unavailable${r && r.error ? ` — ${r.error}` : ''}`;
+  } catch (err) {
+    $('store-status').textContent = `Community catalog unavailable — ${errText(err)}`;
+  }
 }
 
 async function loadStore() {
@@ -373,13 +493,15 @@ async function loadStore() {
   let res;
   try { res = await api.ext.list(); } catch (err) {
     grid.innerHTML = '';
-    toast(`🧩 ${err.message}`, 'warn');
+    toast(`🧩 ${errText(err)}`, 'warn');
     return;
   }
   grid.innerHTML = '';
   for (const item of res.items) grid.appendChild(storeCard(item));
-  $('store-status').textContent =
-    `${res.count} active · ${res.items.length} in catalog`;
+  if (!res.items.length) grid.innerHTML = '<p class="muted">No extensions yet.</p>';
+  const parts = [`${res.count} active`, `${res.bundled || 0} built-in`];
+  if (res.community) parts.push(`${res.community} community`);
+  $('store-status').textContent = parts.join(' · ');
   const badge = $('store-badge');
   badge.textContent = String(res.count);
   badge.classList.toggle('hidden', res.count === 0);
@@ -402,6 +524,12 @@ function storeCard(item) {
   tag.className = 'muted';
   tag.textContent = item.tagline;
   meta.append(name, tag);
+  if (item.community) {
+    const by = document.createElement('span');
+    by.className = 'xcard-author';
+    by.textContent = item.author ? `by ${item.author}` : 'Community extension';
+    meta.appendChild(by);
+  }
   top.append(icon, meta);
 
   const foot = document.createElement('div');
@@ -410,6 +538,12 @@ function storeCard(item) {
   chip.className = 'xcard-chip';
   chip.textContent = item.category;
   foot.appendChild(chip);
+  if (item.community) {
+    const c = document.createElement('span');
+    c.className = 'xcard-chip community';
+    c.textContent = 'Community';
+    foot.appendChild(c);
+  }
   if (item.rating) {
     const rate = document.createElement('span');
     rate.className = 'xcard-rating';
@@ -432,14 +566,18 @@ function storeCard(item) {
         await api.ext.uninstall(item.key);
         toast(`🧩 Removed ${item.name} — reload open tabs to apply`, 'info');
       } else {
+        if (item.community) {
+          const ok = confirm(`${item.name}${item.author ? ` by ${item.author}` : ''} is a community extension.\n\nExtensions can read and change data on the sites you visit. Install it only if you trust its author. Continue?`);
+          if (!ok) { btn.disabled = false; return; }
+        }
         await api.ext.install(item.key);
-        toast(`🧩 Installed ${item.name} — reloading tab to apply`, 'ok');
+        toast(`🧩 Installed ${item.name}${item.community ? ' (hash-checked)' : ''} — reloading tab to apply`, 'ok');
         // Content scripts run at document_idle, so the current page needs a
         // reload to pick the extension up.
         if (state.activeTabId) api.tabs.reload(state.activeTabId);
       }
     } catch (err) {
-      toast(`🧩 ${err.message}`, 'warn');
+      toast(`🧩 ${errText(err)}`, 'warn');
     }
     btn.disabled = false;
     await loadStore();
@@ -448,6 +586,83 @@ function storeCard(item) {
   card.append(top, foot);
   return card;
 }
+
+// ---- Publish (free GitHub-hosted catalog) --------------------------------
+$('pub-pick').onclick = async () => {
+  const r = await api.ext.pickFolder();
+  if (!r || r.canceled) return;
+  if (!r.ok) { $('pub-status').textContent = r.error || 'Could not read that folder.'; return; }
+  pubDir = r.dir;
+  pubEntry = null;
+  pubZip = null;
+  pubSubmit = null;
+  $('pub-name').value = r.manifest.name;
+  $('pub-version').value = r.manifest.version;
+  $('pub-desc').value = r.manifest.description || '';
+  $('pub-manifest').textContent = `${r.manifest.name} v${r.manifest.version} · manifest v${r.manifest.manifest_version}`;
+  $('pub-form').classList.remove('hidden');
+  $('pub-result').classList.add('hidden');
+  $('pub-status').textContent = '';
+};
+
+$('pub-build').onclick = async () => {
+  if (!pubDir) return;
+  const meta = {
+    name: $('pub-name').value.trim(),
+    version: $('pub-version').value.trim(),
+    author: $('pub-author').value.trim(),
+    category: $('pub-category').value,
+    emoji: $('pub-emoji').value.trim() || '🧩',
+    homepage: $('pub-home').value.trim(),
+    downloadUrl: $('pub-url').value.trim(),
+    description: $('pub-desc').value.trim(),
+  };
+  const btn = $('pub-build');
+  btn.disabled = true;
+  btn.textContent = 'Packaging…';
+  try {
+    const r = await api.ext.publish({ dir: pubDir, meta });
+    if (r && r.ok) {
+      pubEntry = r.entry;
+      pubZip = r.zipPath;
+      pubSubmit = r.submitUrl;
+      $('pub-json').textContent = JSON.stringify(r.entry, null, 2);
+      $('pub-result').classList.remove('hidden');
+      $('pub-status').textContent = `Saved ${r.zipPath} · SHA-256 ${r.sha256.slice(0, 16)}…`;
+      toast('🧩 Package built — submit it on GitHub for free', 'ok');
+    } else if (r && !r.canceled) {
+      $('pub-status').textContent = r.error || 'Packaging failed.';
+    }
+  } catch (err) {
+    $('pub-status').textContent = errText(err);
+  }
+  btn.disabled = false;
+  btn.textContent = '📦 Build .zip + submission';
+};
+
+$('pub-copy').onclick = async () => {
+  if (!pubEntry) return;
+  const text = JSON.stringify(pubEntry, null, 2);
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  toast('📋 Catalog JSON copied', 'ok');
+};
+
+$('pub-issue').onclick = () => {
+  if (pubSubmit) api.openExternal(pubSubmit);
+};
+
+$('pub-reveal').onclick = () => {
+  if (pubZip) api.ext.reveal(pubZip);
+};
 
 async function loadSettings() {
   const s = await api.settings.get();
@@ -462,7 +677,17 @@ async function loadSettings() {
   $('ai-config-status').textContent = s.aiMode === 'cloud'
     ? `Connected (${s.aiModel}). API key stored encrypted in your vault.`
     : 'Using built-in local AI (no data leaves your machine). Add an API key for cloud AI.';
-  $('stat-ai').textContent = s.aiMode === 'cloud' ? 'cloud' : 'local';
+  $('stat-ai') && ($('stat-ai').textContent = s.aiMode === 'cloud' ? 'cloud' : 'local');
+
+  // Account — the username is a sign-in label, never part of the vault key.
+  try {
+    const acct = await api.auth.status();
+    state.account = acct;
+    $('set-username').value = acct.username || '';
+    $('username-status').textContent = acct.hasUsername
+      ? `Signed in as ${acct.username}. Changing it only changes the sign-in label — your encrypted history stays readable.`
+      : 'No username set yet — add one to show it on the sign-in screen.';
+  } catch { /* main busy */ }
 
   // Search engine + anonymity
   renderSearchSettings(s);
@@ -885,6 +1110,18 @@ $('settings-save-ai').onclick = async () => {
 
 $('settings-clean-now').onclick = () => $('btn-clean').click();
 $('settings-lock').onclick = () => $('btn-lock').click();
+
+$('set-username-save').onclick = async () => {
+  try {
+    const r = await api.auth.setUsername($('set-username').value.trim());
+    state.account = { ...(state.account || {}), username: r.username, hasUsername: true };
+    $('username-status').textContent = `Saved — you will sign in as ${r.username}.`;
+    toast('👤 Username updated', 'ok');
+  } catch (e) {
+    $('username-status').textContent = errText(e);
+  }
+};
+$('set-username').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('set-username-save').click(); });
 $('settings-wipe').onclick = async () => {
   if (!confirm('Erase ALL Aegis data and reset? This cannot be undone.')) return;
   await api.auth.wipe();

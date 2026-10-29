@@ -6,9 +6,10 @@ const invoke = (channel, payload) => ipcRenderer.invoke(channel, payload);
 contextBridge.exposeInMainWorld('aegis', {
   auth: {
     status: () => invoke('auth:status'),
-    setup: (passphrase) => invoke('auth:setup', { passphrase }),
+    setup: (username, passphrase) => invoke('auth:setup', { username, passphrase }),
     confirm: (code) => invoke('auth:confirm', { code }),
-    login: (passphrase, code) => invoke('auth:login', { passphrase, code }),
+    login: (username, passphrase, code) => invoke('auth:login', { username, passphrase, code }),
+    setUsername: (username) => invoke('auth:set-username', { username }),
     lock: () => invoke('auth:lock'),
     touch: () => invoke('auth:touch'),
     wipe: () => invoke('auth:wipe'),
@@ -47,7 +48,13 @@ contextBridge.exposeInMainWorld('aegis', {
     install: (key) => invoke('ext:install', key),
     uninstall: (key) => invoke('ext:uninstall', key),
     loadUnpacked: () => invoke('ext:unpacked'),
+    refresh: () => invoke('ext:refresh'),
+    installUrl: (url, sha256) => invoke('ext:install-url', { url, sha256 }),
+    pickFolder: () => invoke('ext:pick-folder'),
+    publish: (payload) => invoke('ext:publish', payload),
+    reveal: (file) => invoke('ext:reveal', file),
   },
+  openExternal: (url) => invoke('app:open-external', url),
   privacy: {
     clean: (what) => invoke('privacy:clean', { what }),
     status: () => invoke('privacy:status'),

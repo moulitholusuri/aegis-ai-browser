@@ -16,6 +16,9 @@
       <h1>Set up secure sign-in</h1>
       <p class="muted">Your browsing history is encrypted with keys derived from your
         passphrase. Sign-in requires <strong>Google Authenticator</strong> (or any TOTP app).</p>
+      <label>Username
+        <input type="text" id="setup-user" autocomplete="username" placeholder="e.g. Moulitholu" maxlength="32" />
+      </label>
       <label>Passphrase <span class="muted">(min 8 chars)</span>
         <input type="password" id="setup-pass" autocomplete="new-password" />
       </label>
@@ -47,6 +50,9 @@
       <div class="brand">🛡️ Aegis</div>
       <h1>Sign in</h1>
       <p class="muted">Two factors required: passphrase + Google Authenticator code.</p>
+      <label id="login-user-label" class="hidden">Username
+        <input type="text" id="login-user" autocomplete="username" placeholder="Your username" maxlength="32" />
+      </label>
       <label>Passphrase
         <input type="password" id="login-pass" autocomplete="current-password" />
       </label>
@@ -55,7 +61,10 @@
       </label>
       <button id="login-go" class="primary">Unlock browser</button>
       <p class="error" id="login-error"></p>
-      <button id="login-wipe" class="danger-link">Forgot? Wipe all local data & start over</button>
+      <div class="auth-links">
+        <button id="login-newuser" class="link-btn">👤 New user? Create an account</button>
+        <button id="login-wipe" class="danger-link">Forgot? Wipe all local data &amp; start over</button>
+      </div>
     </div>
   </div>
 
@@ -112,7 +121,6 @@
           <div id="newtab-stats">
             <div class="stat"><b id="stat-blocked">0</b><span>ads/trackers blocked</span></div>
             <div class="stat"><b id="stat-lastclean">—</b><span>last auto-clean</span></div>
-            <div class="stat"><b id="stat-ai">local</b><span>AI engine</span></div>
           </div>
 
           <!-- Big "Indian Made" seal on the home page -->
@@ -174,6 +182,16 @@
     <div id="overlay-settings" class="overlay hidden">
       <div class="overlay-card">
         <div class="panel-head"><b>⚙️ Settings</b><button id="settings-close">✕</button></div>
+
+        <div class="set-group"><h3>👤 Account</h3></div>
+        <div class="setting">
+          <label>Username — shown on the sign-in screen (you can change it anytime)</label>
+          <div class="acct-row">
+            <input id="set-username" placeholder="Your username" maxlength="32" />
+            <button id="set-username-save" class="panel-btn">Save</button>
+          </div>
+          <p class="muted" id="username-status"></p>
+        </div>
 
         <div class="set-group"><h3>🛡️ Privacy &amp; data</h3></div>
         <div class="setting">
@@ -301,14 +319,71 @@
     <div id="overlay-store" class="overlay hidden">
       <div class="overlay-card store-card">
         <div class="panel-head"><b>🧩 Extension Store</b><button id="store-close">✕</button></div>
-        <p class="muted store-blurb">
-          Curated, offline extensions that run inside your tabs — exactly like Chrome extensions.
-          Install to enable, remove to disable. No account, no telemetry, nothing phones home.
-        </p>
-        <div id="store-grid"></div>
-        <div class="store-foot">
-          <button id="store-unpacked" class="panel-btn">📦 Load unpacked extension…</button>
+
+        <div class="store-tabs">
+          <button id="store-tab-browse" class="store-tab active">Browse</button>
+          <button id="store-tab-publish" class="store-tab">🚀 Publish yours — free</button>
           <span id="store-status" class="muted"></span>
+        </div>
+
+        <div id="store-browse">
+          <p class="muted store-blurb">
+            Curated extensions plus a free community catalog hosted on GitHub. Install to enable,
+            remove to disable. No account, no store fee, no telemetry.
+          </p>
+          <div id="store-grid"></div>
+          <div class="store-foot">
+            <button id="store-refresh" class="panel-btn">↻ Refresh community</button>
+            <button id="store-unpacked" class="panel-btn">📦 Load unpacked…</button>
+            <button id="store-url-toggle" class="panel-btn">🔗 Install from URL…</button>
+          </div>
+          <div id="store-url-row" class="store-url-row hidden">
+            <input id="store-url" spellcheck="false" placeholder="https://github.com/you/ext/releases/download/v1.0/ext.zip" />
+            <button id="store-url-go" class="panel-btn">Install</button>
+          </div>
+        </div>
+
+        <div id="store-publish" class="hidden">
+          <p class="muted store-blurb">
+            Publish your Chrome-style extension for <b>free</b>. Pick its folder — Aegis packages a
+            .zip, computes its SHA-256, builds the catalog entry, and opens a GitHub submission.
+            No developer account, no store fee. Host the .zip on GitHub Releases (free) and paste
+            the link below.
+          </p>
+          <div class="pub-head">
+            <button id="pub-pick" class="panel-btn">📁 Choose extension folder…</button>
+            <span id="pub-manifest" class="muted"></span>
+          </div>
+          <div id="pub-form" class="pub-form hidden">
+            <div class="pub-grid">
+              <label>Name<input id="pub-name" readonly /></label>
+              <label>Version<input id="pub-version" readonly /></label>
+              <label>Author<input id="pub-author" placeholder="Your name or GitHub handle" maxlength="80" /></label>
+              <label>Category
+                <select id="pub-category">
+                  <option>Productivity</option><option>Privacy</option><option>Appearance</option>
+                  <option>Developer tools</option><option>News</option><option>Accessibility</option>
+                  <option>Fun</option><option>Other</option>
+                </select>
+              </label>
+              <label>Emoji<input id="pub-emoji" value="🧩" maxlength="4" /></label>
+              <label>Homepage / repo<input id="pub-home" placeholder="https://github.com/you/my-extension" /></label>
+            </div>
+            <label>Description<textarea id="pub-desc" rows="2" maxlength="280"></textarea></label>
+            <label>Public .zip URL <span class="muted">(optional now — you can host it after building)</span>
+              <input id="pub-url" placeholder="https://github.com/you/repo/releases/download/v1.0.0/my-ext.zip" />
+            </label>
+            <button id="pub-build" class="primary">📦 Build .zip + submission</button>
+            <p id="pub-status" class="muted"></p>
+            <div id="pub-result" class="hidden">
+              <pre id="pub-json" class="pub-json"></pre>
+              <div class="pub-actions">
+                <button id="pub-copy" class="panel-btn">Copy catalog JSON</button>
+                <button id="pub-issue" class="panel-btn">Submit on GitHub →</button>
+                <button id="pub-reveal" class="panel-btn">Show .zip</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

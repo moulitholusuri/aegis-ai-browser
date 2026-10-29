@@ -15,6 +15,7 @@ const PORT = 9417;
 const APP = path.join(__dirname, '..');
 const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-live-'));
 const PASS = 'aegis-live-test-pass';
+const USER = 'Aegis Tester';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => {
@@ -125,6 +126,7 @@ async function waitFor(cdp, expr, ms = 15000) {
     check('setup screen shown for a fresh profile', atSetup);
 
     await chrome.eval(`(() => {
+      document.getElementById('setup-user').value = ${JSON.stringify(USER)};
       document.getElementById('setup-pass').value = ${JSON.stringify(PASS)};
       document.getElementById('setup-pass2').value = ${JSON.stringify(PASS)};
       document.getElementById('setup-next').click();
@@ -276,6 +278,39 @@ async function waitFor(cdp, expr, ms = 15000) {
       check('closing Settings restores the page view', visBack === 'visible');
       pageCdp.close();
     }
+
+    // ---- auth: username label, generic error, lock/unlock -----------------
+    await chrome.eval(`api.auth.lock()`);
+    const atLogin = await waitFor(chrome, `!document.getElementById('screen-login').classList.contains('hidden')`);
+    check('locking shows the sign-in screen', atLogin);
+    const accountUi = await chrome.eval(`({
+      hasField: !document.getElementById('login-user-label').classList.contains('hidden'),
+      value: document.getElementById('login-user').value,
+      hasSignup: !!document.getElementById('login-newuser'),
+    })`);
+    check('sign-in shows the enrolled username', accountUi.hasField && accountUi.value === USER);
+    check('sign-in offers a new-user signup option', accountUi.hasSignup);
+
+    await chrome.eval(`(() => {
+      document.getElementById('login-user').value = 'Wrong User';
+      document.getElementById('login-pass').value = 'definitely-wrong';
+      document.getElementById('login-code').value = '000000';
+      document.getElementById('login-go').click();
+    })()`);
+    await sleep(1500);
+    const wrongMsg = await chrome.eval(`document.getElementById('login-error').textContent`);
+    check(`wrong credentials say "Credentials mismatching" (got "${wrongMsg}")`,
+      /credentials mismatching/i.test(wrongMsg));
+
+    const freshCode = totp(b32decode(secretText));
+    await chrome.eval(`(() => {
+      document.getElementById('login-user').value = ${JSON.stringify(USER)};
+      document.getElementById('login-pass').value = ${JSON.stringify(PASS)};
+      document.getElementById('login-code').value = ${JSON.stringify(freshCode)};
+      document.getElementById('login-go').click();
+    })()`);
+    const backIn = await waitFor(chrome, `!document.getElementById('browser').classList.contains('hidden')`, 20000);
+    check('correct username + passphrase + TOTP unlocks again', backIn);
   } catch (e) {
     fail++;
     console.log('✗ exception: ' + e.message);
