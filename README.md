@@ -1,6 +1,21 @@
 # 🛡️ Aegis AI Browser
 
-A privacy-first, AI-automated desktop browser built on Electron/Chromium.
+A privacy-first, AI-automated desktop browser built on Electron/Chromium — with an Indian-themed interface. **Free and open source (MIT).**
+
+![Aegis new tab](docs/screenshot.png)
+
+## Download
+
+Grab the latest build from **[Releases](https://github.com/moulitholusuri/aegis-ai-browser/releases)** — free, no account needed.
+
+| Platform | File | Notes |
+|---|---|---|
+| macOS (Apple Silicon) | `Aegis-*-mac-arm64.dmg` | Unsigned build: right-click the app → **Open** the first time (or `xattr -dr com.apple.quarantine /Applications/Aegis.app`). |
+| macOS (Intel) | `Aegis-*-mac-x64.dmg` | Built by CI on each tag. Same unsigned caveat. |
+| Windows | `Aegis-*-win-x64.exe` | SmartScreen may warn: **More info → Run anyway**. |
+| Linux | `Aegis-*-linux-x86_64.AppImage` | `chmod +x` then run. |
+
+Signing/notarization is intentionally skipped so the project stays free to build and distribute. Drop a ⭐ if you find it useful.
 
 ## Features
 

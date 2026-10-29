@@ -5,7 +5,11 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "smoke": "electron src/main/smoke.js"
+    "smoke": "electron src/main/smoke.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
   },
   "keywords": [
     "browser",
@@ -17,9 +21,61 @@
   ],
   "license": "MIT",
   "devDependencies": {
-    "electron": "^45.0.0"
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
     "qrcode": "^1.5.4"
+  },
+  "author": "moulitholusuri",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moulitholusuri/aegis-ai-browser.git"
+  },
+  "build": {
+    "appId": "com.moulitholusuri.aegis",
+    "productName": "Aegis",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "extensions/**/*",
+      "package.json",
+      "LICENSE",
+      "README.md"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "icon": "assets/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Network",
+      "icon": "assets/icon.png"
+    },
+    "dmg": {
+      "title": "Aegis ${version}",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }
