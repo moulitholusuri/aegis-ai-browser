@@ -394,7 +394,9 @@ ipcMain.handle('auth:lock', () => { lockSession('manual'); return { ok: true }; 
 ipcMain.handle('auth:touch', () => { if (vault) startIdleTimer(); return { ok: true }; });
 ipcMain.handle('auth:wipe', () => {
   vault && vault.wipeFile && vault.wipeFile();
+  vault = null;
   auth.wipe();
+  sessionLocked = true;
   for (const t of tabs.values()) { try { t.view.webContents.close(); } catch {} }
   tabs.clear(); activeTabId = null;
   privacy.clean('all', 'wipe').catch(() => {});

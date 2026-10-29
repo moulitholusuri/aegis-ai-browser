@@ -86,6 +86,15 @@ const check = (name, fn) => {
     const v = new AuthVault(legacy);
     assert.strictEqual(v.login('', PASS, totp(legacySecret)), true);
   });
+  check('wipe forgets the profile immediately (no stale login state)', () => {
+    const v = relogin();
+    v.login('New Name', PASS, code());
+    v.wipe();
+    assert.strictEqual(v.isConfigured(), false);
+    assert.strictEqual(v.isUnlocked(), false);
+    assert.strictEqual(fs.existsSync(file), false);
+    assert.throws(() => v.login('New Name', PASS, code()), /Not configured/);
+  });
 
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(`\n${pass} passed, ${fail} failed`);

@@ -129,6 +129,10 @@ class AuthVault {
   wipe() {
     this.lock();
     this._pending = null;
+    // Forgetting the in-memory state matters: the renderer reloads right after
+    // a wipe, and a stale `configured: true` would bounce it back to the login
+    // screen (and keep the old credentials valid until restart).
+    this.state = { configured: false };
     try { fs.rmSync(this.file, { force: true }); } catch { /* ignore */ }
   }
 }

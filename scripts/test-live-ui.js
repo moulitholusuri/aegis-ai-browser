@@ -312,6 +312,17 @@ async function waitFor(cdp, expr, ms = 15000) {
     })()`);
     const backIn = await waitFor(chrome, `!document.getElementById('browser').classList.contains('hidden')`, 20000);
     check('correct username + passphrase + TOTP unlocks again', backIn);
+
+    // ---- new-user signup: wipes the profile and reloads into setup -------
+    await chrome.eval(`window.confirm = () => true; document.getElementById('login-newuser').click()`);
+    const wipedToSetup = await waitFor(chrome,
+      `!document.getElementById('screen-setup').classList.contains('hidden')`, 20000);
+    check('new-user signup wipes the profile and reloads into setup', wipedToSetup);
+    const wipedStatus = await chrome.eval(
+      `api.auth.status().then((s) => ({ configured: s.configured, unlocked: s.unlocked }))`,
+    );
+    check('wiped profile reports unconfigured + locked',
+      wipedStatus && wipedStatus.configured === false && wipedStatus.unlocked === false);
   } catch (e) {
     fail++;
     console.log('✗ exception: ' + e.message);
