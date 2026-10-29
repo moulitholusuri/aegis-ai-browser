@@ -16,18 +16,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS arm64
+          - name: macOS arm64 + x64
             os: macos-14
-            artifact: Aegis-*-mac-arm64.dmg
-          - name: macOS x64
-            os: macos-13
-            artifact: Aegis-*-mac-x64.dmg
+            args: --mac --arm64 --x64
           - name: Windows x64
             os: windows-latest
-            artifact: Aegis-*-win-x64.exe
+            args: --win
           - name: Linux x86_64
             os: ubuntu-latest
-            artifact: Aegis-*-linux-x86_64.AppImage
+            args: --linux
 
     steps:
       - uses: actions/checkout@v4
@@ -41,9 +38,11 @@ jobs:
         run: npm ci
 
       - name: Build installer
-        run: npx electron-builder --publish never
+        run: npx electron-builder ${{ matrix.args }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned builds — no Apple/Windows certificates needed.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
