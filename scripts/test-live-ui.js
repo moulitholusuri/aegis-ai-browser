@@ -290,6 +290,7 @@ async function waitFor(cdp, expr, ms = 15000) {
     })`);
     check('sign-in shows the enrolled username', accountUi.hasField && accountUi.value === USER);
     check('sign-in offers a new-user signup option', accountUi.hasSignup);
+    await shot('/tmp/aegis-live-login.png');
 
     await chrome.eval(`(() => {
       document.getElementById('login-user').value = 'Wrong User';
