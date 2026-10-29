@@ -17,6 +17,41 @@ Grab the latest build from **[Releases](https://github.com/moulitholusuri/aegis-
 
 Signing/notarization is intentionally skipped so the project stays free to build and distribute. Drop a ⭐ if you find it useful.
 
+## System requirements
+
+| Platform | Supported versions | Builds provided |
+|---|---|---|
+| **macOS** | **13 Ventura or later** (14 Sonoma, 15 Sequoia, 26 Tahoe…) | Apple Silicon (`arm64`) and Intel (`x64`) |
+| **Windows** | **10 or later**, 64-bit (11 supported) | `x64` (runs on Windows on ARM via emulation) |
+| **Linux** | **Ubuntu 20.04+, Debian 11+, Fedora 36+** or equivalent 64-bit distro with **glibc 2.31+** | `x86_64` AppImage |
+
+> **Linux note:** the AppImage uses FUSE 2. On Ubuntu 22.04+ install it with `sudo apt install libfuse2`, or run `./Aegis-*.AppImage --appimage-extract-and-run`.
+>
+> **macOS note:** the minimum is set by Electron 45 (`LSMinimumSystemVersion = 13.0`); older macOS versions are not supported.
+
+### Built with
+
+| Component | Version |
+|---|---|
+| Electron | **45.0.0** |
+| Chromium | **156.0.8078.48** |
+| Node.js (runtime bundled in the app) | **24.22.0** |
+| V8 | 15.6.75 |
+| electron-builder | 26.18.0 |
+| qrcode | 1.5.4 |
+| Node.js (development) | 22.x (tested 22.20.0) |
+| npm | 10.x (tested 10.9.3) |
+
+### Build from source
+
+Requires **Node.js 22.x** (or newer LTS) and **npm 10.x**.
+
+```bash
+npm install
+npm start            # run in development
+npm run dist:mac     # .dmg + .zip (or dist:win / dist:linux)
+```
+
 ## Features
 
 | Requirement | How it's implemented |
