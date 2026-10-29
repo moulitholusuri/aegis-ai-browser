@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'" />
+  <title>Aegis AI Browser</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ============ AUTH: SETUP ============ -->
+  <div id="screen-setup" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="brand">🛡️ Aegis</div>
+      <h1>Set up secure sign-in</h1>
+      <p class="muted">Your browsing history is encrypted with keys derived from your
+        passphrase. Sign-in requires <strong>Google Authenticator</strong> (or any TOTP app).</p>
+      <label>Passphrase <span class="muted">(min 8 chars)</span>
+        <input type="password" id="setup-pass" autocomplete="new-password" />
+      </label>
+      <label>Confirm passphrase
+        <input type="password" id="setup-pass2" autocomplete="new-password" />
+      </label>
+      <button id="setup-next" class="primary">Create authenticator binding →</button>
+      <p class="error" id="setup-error"></p>
+    </div>
+
+    <div class="auth-card hidden" id="setup-qr-card">
+      <div class="brand">🔐 Step 2 of 2</div>
+      <h1>Scan with Google Authenticator</h1>
+      <p class="muted">Open Google Authenticator → <em>+</em> → <em>Scan a QR code</em>.
+        Can't scan? Enter this key manually.</p>
+      <img id="setup-qr" alt="TOTP QR code" />
+      <div class="secret" id="setup-secret"></div>
+      <label>Enter the 6-digit code shown in your app
+        <input type="text" id="setup-code" inputmode="numeric" maxlength="6" placeholder="123456" />
+      </label>
+      <button id="setup-confirm" class="primary">Activate browser 🔓</button>
+      <p class="error" id="setup-confirm-error"></p>
+    </div>
+  </div>
+
+  <!-- ============ AUTH: LOGIN ============ -->
+  <div id="screen-login" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="brand">🛡️ Aegis</div>
+      <h1>Sign in</h1>
+      <p class="muted">Two factors required: passphrase + Google Authenticator code.</p>
+      <label>Passphrase
+        <input type="password" id="login-pass" autocomplete="current-password" />
+      </label>
+      <label>Authenticator code
+        <input type="text" id="login-code" inputmode="numeric" maxlength="6" placeholder="123456" />
+      </label>
+      <button id="login-go" class="primary">Unlock browser</button>
+      <p class="error" id="login-error"></p>
+      <button id="login-wipe" class="danger-link">Forgot? Wipe all local data & start over</button>
+    </div>
+  </div>
+
+  <!-- ============ BROWSER ============ -->
+  <div id="browser" class="hidden">
+
+    <div id="titlebar">
+      <div id="tabstrip">
+        <div id="tabs"></div>
+        <button id="btn-newtab" title="New tab (⌘T)">＋</button>
+      </div>
+    </div>
+
+    <div id="toolbar">
+      <button id="btn-back" title="Back">←</button>
+      <button id="btn-forward" title="Forward">→</button>
+      <button id="btn-reload" title="Reload">⟳</button>
+      <div id="omnibox-wrap">
+        <span id="omnibox-badge" title="Privacy status">🛡️</span>
+        <input id="omnibox" placeholder="Search or enter address — !g Google, !b Bing, !yt YouTube, !a Aegis…" spellcheck="false" />
+        <button id="engine-btn" title="Change search engine">🔍 Aegis ▾</button>
+        <span id="omnibox-ai" title="Ask AI">✨</span>
+        <div id="engine-menu" class="hidden"></div>
+      </div>
+      <button id="btn-history" title="Encrypted history (⌘Y)">🕘</button>
+      <button id="btn-ai" title="AI panel (⌘J)">🤖<span id="ai-badge" class="hidden">0</span></button>
+      <button id="btn-clean" title="Clean cache & cookies now">🧹</button>
+      <button id="btn-store" title="Extension store">🧩<span id="store-badge" class="hidden">0</span></button>
+      <button id="btn-settings" title="Settings">⚙️</button>
+      <button id="btn-lock" title="Lock browser (⌘L)">🔒</button>
+    </div>
+
+    <div id="content-row">
+      <!-- History sidebar (Firefox-style): opens on the left, page stays visible -->
+      <aside id="overlay-history" class="hidden">
+        <div class="panel-head"><b>🕘 Encrypted History</b>
+          <div>
+            <button id="history-clear" class="danger-link">Clear all</button>
+            <button id="history-close">✕</button>
+          </div>
+        </div>
+        <input id="history-search" placeholder="Search history…" />
+        <div id="history-list"></div>
+      </aside>
+
+      <div id="viewport">
+        <!-- New-tab home rendered here; page views are layered on top by main -->
+        <div id="newtab">
+          <div id="nt-logo">🛡️</div>
+          <h1>Aegis</h1>
+          <p class="muted">Ads & trackers blocked automatically · cache auto-cleans · history encrypted</p>
+          <input id="newtab-search" placeholder="Ask anything, or type a URL…" spellcheck="false" />
+          <div id="nt-engine">🔍 Searching with <b id="nt-engine-name">Aegis AI</b> — click here or the pill above to change</div>
+          <div id="newtab-stats">
+            <div class="stat"><b id="stat-blocked">0</b><span>ads/trackers blocked</span></div>
+            <div class="stat"><b id="stat-lastclean">—</b><span>last auto-clean</span></div>
+            <div class="stat"><b id="stat-ai">local</b><span>AI engine</span></div>
+          </div>
+
+          <!-- Big "Indian Made" seal on the home page -->
+          <div id="home-stamp" aria-label="Indian made">
+            <svg viewBox="0 0 120 120" role="img">
+              <defs>
+                <path id="home-stamp-arc" d="M 17 60 A 43 43 0 1 1 103 60" />
+              </defs>
+              <circle cx="60" cy="60" r="56" fill="none" stroke="currentColor" stroke-width="2.4" />
+              <circle cx="60" cy="60" r="49" fill="none" stroke="currentColor" stroke-width="0.9"
+                      stroke-dasharray="2.2 2.6" />
+              <text fill="currentColor" font-size="10" font-weight="700" letter-spacing="2.5"
+                    font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+                <textPath href="#home-stamp-arc" startOffset="50%" text-anchor="middle">INDIAN MADE</textPath>
+              </text>
+              <g>
+                <rect x="47" y="49" width="26" height="7" fill="#ff9933" />
+                <rect x="47" y="56" width="26" height="7" fill="#fbf3e4" />
+                <rect x="47" y="63" width="26" height="7" fill="#19a463" />
+                <circle cx="60" cy="59.5" r="2.9" fill="none" stroke="#8a6b2f" stroke-width="0.9" />
+              </g>
+              <text x="60" y="88" text-anchor="middle" fill="currentColor" font-size="11" font-weight="600"
+                    letter-spacing="1.2" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+                भारत
+              </text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <aside id="ai-panel" class="hidden">
+        <div class="panel-head">
+          <b>🤖 AI Copilot</b>
+          <button id="ai-close">✕</button>
+        </div>
+        <div class="panel-section">
+          <button id="ai-summarize" class="panel-btn">Summarize this page</button>
+          <button id="ai-health" class="panel-btn">🩺 App health & error report</button>
+          <input id="ai-question" placeholder="Ask about this page…" />
+          <button id="ai-ask" class="panel-btn">Ask</button>
+        </div>
+        <div class="panel-section">
+          <label class="muted">Autopilot task (agent runs it for you)</label>
+          <input id="ai-task" placeholder="e.g. find the latest news on AI privacy" />
+          <button id="ai-run" class="primary panel-btn">▶ Run autopilot</button>
+        </div>
+        <div id="ai-output"></div>
+      </aside>
+    </div>
+
+    <div id="statusbar">
+      <span id="status-left">🛡️ 0 blocked</span>
+      <span id="status-mid"></span>
+      <span id="status-net">🌐 direct</span>
+      <span id="status-right">🔒 encrypted history</span>
+    </div>
+
+    <!-- ===== Settings overlay ===== -->
+    <div id="overlay-settings" class="overlay hidden">
+      <div class="overlay-card">
+        <div class="panel-head"><b>⚙️ Settings</b><button id="settings-close">✕</button></div>
+
+        <div class="set-group"><h3>🛡️ Privacy &amp; data</h3></div>
+        <div class="setting">
+          <label>🧹 Auto-clean cache & cookies every
+            <select id="set-clean">
+              <option value="0">Off (manual only)</option>
+              <option value="5">5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="setting">
+          <label>🔒 Auto-lock (no activity) after
+            <select id="set-lock">
+              <option value="0">Never</option>
+              <option value="5">5 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="setting">
+          <label><input type="checkbox" id="set-ads" /> 🛡️ Block ads & trackers</label>
+        </div>
+        <div class="setting">
+          <label><input type="checkbox" id="set-fp" /> 🎭 Anti-fingerprinting</label>
+        </div>
+        <div class="setting">
+          <label><input type="checkbox" id="set-ref" /> 🔒 Strict referrer (strip cross-site)</label>
+        </div>
+
+        <hr />
+        <div class="set-group" id="set-group-search"><h3>🔍 Search</h3></div>
+        <div class="setting">
+          <label>Default search engine</label>
+          <div id="engine-cards" class="engine-cards"></div>
+        </div>
+
+        <div class="setting">
+          <label>Quick switcher (the engine pill in the omnibox)</label>
+          <div id="engine-toggles" class="engine-toggles"></div>
+          <p class="muted">Show or hide engines in the switcher. Your current default always stays on.</p>
+        </div>
+
+        <div class="setting">
+          <label>➕ Add your own search engine</label>
+          <div class="eng-form">
+            <input id="eng-name" placeholder="Name — e.g. Ecosia" maxlength="40" />
+            <input id="eng-url" placeholder="Search URL containing %s — e.g. https://www.ecosia.org/search?q=%s" />
+            <input id="eng-bang" placeholder="Bang — eco" title="Optional: type this in the omnibox to search that engine once, e.g. !eco solar" maxlength="6" />
+            <button id="eng-add-btn" class="panel-btn">Add engine</button>
+          </div>
+          <p class="muted">Tip: search something on the site, then copy the address-bar URL and replace your query with <code>%s</code>.</p>
+          <p class="muted" id="eng-add-status"></p>
+          <div id="eng-custom-list"></div>
+        </div>
+
+        <div class="setting">
+          <label>🧠 Aegis AI sources</label>
+          <div id="source-toggles" class="engine-toggles"></div>
+          <p class="muted">Only affects the built-in Aegis engine. Turn off sources you don't need for faster answers.</p>
+        </div>
+
+        <div class="setting">
+          <label>⌨️ Bangs — one-off searches from the omnibox</label>
+          <div id="bang-chips" class="bang-chips"></div>
+        </div>
+
+        <div class="set-group"><h3>🌐 Network, cookies &amp; identity</h3></div>
+        <div class="setting">
+          <label>🌐 Anonymity network (hides your IP)
+            <select id="set-anon">
+              <option value="direct">Direct connection</option>
+              <option value="tor">Tor (socks5://127.0.0.1:9150)</option>
+              <option value="custom">Custom proxy…</option>
+            </select>
+          </label>
+          <div id="proxy-custom" class="hidden">
+            <select id="set-proxy-scheme">
+              <option value="socks5">socks5</option><option value="socks4">socks4</option>
+              <option value="http">http</option><option value="https">https</option>
+            </select>
+            <input id="set-proxy-host" placeholder="127.0.0.1" />
+            <input id="set-proxy-port" placeholder="9150" inputmode="numeric" />
+          </div>
+          <p class="muted" id="net-status">Status: checking…</p>
+          <button id="net-test" class="panel-btn">Test connection</button>
+        </div>
+
+        <div class="setting">
+          <label><input type="checkbox" id="set-cookies" /> 🍪 Strict third-party cookie isolation</label>
+        </div>
+        <div class="setting">
+          <label><input type="checkbox" id="set-english" /> 🌍 Pin language to en-US (anti-fingerprint)</label>
+        </div>
+        <div class="setting">
+          <label>🤝 Keep me signed in — trusted hosts (comma separated)</label>
+          <textarea id="set-trusted" rows="2" placeholder="google.com, microsoft.com, github.com"></textarea>
+          <p class="muted">Their sign-in cookies survive auto-clean; everyone else's are wiped.</p>
+        </div>
+
+        <hr />
+        <div class="set-group"><h3>✨ AI assistant</h3></div>
+        <div class="setting">
+          <label>✨ AI provider (optional — stored encrypted in your vault)</label>
+          <input id="set-ai-url" placeholder="Base URL (https://api.openai.com/v1)" />
+          <input id="set-ai-model" placeholder="Model (gpt-4o-mini)" />
+          <input id="set-ai-key" type="password" placeholder="API key (leave blank to keep current)" />
+          <button id="settings-save-ai" class="panel-btn">Save AI config</button>
+          <p class="muted" id="ai-config-status"></p>
+        </div>
+
+        <hr />
+        <button id="settings-clean-now" class="panel-btn">🧹 Clean data now</button>
+        <button id="settings-lock" class="panel-btn">🔒 Lock browser</button>
+        <button id="settings-wipe" class="danger-link">⚠️ Erase everything & reset Aegis</button>
+      </div>
+    </div>
+
+    <!-- ===== Extension store overlay ===== -->
+    <div id="overlay-store" class="overlay hidden">
+      <div class="overlay-card store-card">
+        <div class="panel-head"><b>🧩 Extension Store</b><button id="store-close">✕</button></div>
+        <p class="muted store-blurb">
+          Curated, offline extensions that run inside your tabs — exactly like Chrome extensions.
+          Install to enable, remove to disable. No account, no telemetry, nothing phones home.
+        </p>
+        <div id="store-grid"></div>
+        <div class="store-foot">
+          <button id="store-unpacked" class="panel-btn">📦 Load unpacked extension…</button>
+          <span id="store-status" class="muted"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Toasts ===== -->
+    <div id="toasts"></div>
+  </div>
+
+  <!-- ===== "Made in India" stamp ===== -->
+  <div id="made-in-india" title="Proudly made in India" aria-label="Indian made">
+    <span class="stamp-chakra" aria-hidden="true"></span>
+    <span>Indian&nbsp;Made</span>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

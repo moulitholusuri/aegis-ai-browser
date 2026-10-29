@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Link Scrubber",
+  "version": "1.0.0",
+  "description": "Strips utm_*, fbclid, gclid and 30+ tracking parameters from every link on the page — what you see in the status bar and what you copy stays clean.",
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" }
+  ]
+}
