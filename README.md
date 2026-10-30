@@ -70,7 +70,7 @@ npm run dist:mac     # .dmg + .zip (or dist:win / dist:linux)
 
 ```bash
 cd aegis-browser
-npm install   # already done
+npm install
 npm start
 ```
 
